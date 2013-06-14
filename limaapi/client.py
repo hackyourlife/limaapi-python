@@ -35,7 +35,13 @@ class LimaApi:
 		keys = sorted(keywords.keys())
 		for keyword in keys:
 			data[keyword] = keywords[keyword]
+		return self.rpc_call(action, data)
+
+	def rpc_call(self, action, data):
 		content = json.dumps(data)
+		return self.raw_call(action, content)
+
+	def raw_call(self, action, content):
 		data = urllib.urlencode({ 'proc': action, 'args': content })
 		try:
 			socket.setdefaulttimeout(self.net_timeout)
@@ -132,6 +138,90 @@ class LimaApi:
 				)
 			setattr(modules, module, m);
 		return modules
+
+	def getPostThread(self, postid):
+		if self.session is None:
+			raise NotLoggedIn()
+		result = self.call('getPostThread', id=postid)
+		print result
+		return Bean(
+				location=pq(result.find('location')).text(),
+				name=pq(result.find('name')).text(),
+				page=pq(result.find('page')).text(),
+				perpage=pq(result.find('perpage')).text()
+		)
+
+	def getThread(self, url, page=None, perpage=None):
+		data = {};
+		data['sid'] = self.session
+		data['url'] = url
+		if not page is None:
+			data['page'] = page
+		if not perpage is None:
+			data['perpage'] = perpage
+		result = self.rpc_call('getThread', data)
+
+		posts = []
+		for post in result.find('post'):
+			user = pq(post.find('user'))
+			userdeleted = True if user.attr('deleted') == 'true' else False
+
+			def parseXML(node):
+				bean = Bean(tag=node.tag)
+				if node.tag == 'text':
+					bean.text = node.text
+				elif node.tag == 'goto':
+					bean.type = node.get('type')
+					if bean.type == 'thread':
+						bean.url = node.get('url')
+					else:
+						bean.id = node.get('id')
+				elif node.tag == 'link':
+					bean.url = node.get('url')
+				elif node.tag == 'img':
+					bean.src = node.get('src')
+					bean.alt = node.get('alt')
+				elif node.tag == 'youtube':
+					bean.video = node.text
+				elif node.tag == 'math':
+					bean.url = node.find('url').text
+					bean.raw = node.find('raw').text
+
+				if not node.tag in ['br', 'img', 'text', 'math']:
+					bean.children = []
+					for n in node.getchildren():
+						bean.children.append(parseXML(n))
+				return bean
+
+			content = []
+			for node in post.find('content'):
+				content.append(parseXML(node))
+
+			posts.append(Bean(
+				user=Bean(
+					name=user.text(),
+					author=True if user.attr('author') == 'true' else False,
+					deleted=userdeleted,
+					online=True if user.attr('online') == 'true' else False,
+					avatar=user.attr('avatar') if not userdeleted else None,
+					rank=user.attr('rank') if not userdeleted else None,
+					gulden=user.attr('gulden') if not userdeleted else None,
+					role=user.attr('role') if not userdeleted else None,
+					starcount=user.attr('starcount') if not userdeleted else None
+				),
+				type=pq(post.find('type')).text(),
+				date=pq(post.find('date')).text(),
+				id=pq(post.find('id')).text(),
+				content=content
+			))
+
+		return Bean(
+				name=pq(result.find('name')).text(),
+				url=url,
+				pages=pq(result.find('pages')).text(),
+				writable=True if pq(result.find('writable')).text() == 'true' else False,
+				posts=posts
+		)
 
 class Bean:
 	def __init__(self, *args, **keywords):
