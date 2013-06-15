@@ -55,8 +55,6 @@ class LimaApi:
 			return pq(f.read()).remove_namespaces()
 		except urllib2.HTTPError, httperror:
 			raise httperror
-		#f = urllib2.urlopen(self.apiurl, data)
-		#return pq(f.read()).remove_namespaces()
 
 	def login(self, username, password):
 		self.username, self.password = username, password
@@ -80,9 +78,8 @@ class LimaApi:
 			raise NotLoggedIn()
 		boards = []
 		for board in result.find('board'):
-			board = pq(board)
-			name = pq(board.find('name')).text()
-			url = pq(board.find('url')).text()
+			name = board.find('name').text
+			url = board.find('url').text
 			boards.append(Bean(name=name, url=url))
 		return boards
 
@@ -91,49 +88,48 @@ class LimaApi:
 			raise NotLoggedIn()
 		result = self.call('getHomepage', sid=self.session)
 		modules = Bean()
-		for module in pq(result.find('modules')).find('module'):
-			module = pq(module).text()
+		for module in result.find('modules').find('module'):
+			module = module.text
 			m = Bean(name=self.modulenames[module], type=module)
 			if module == 'newest':
 				threads = []
-				for item in pq(result.find('newest')).find('thread'):
-					item = pq(item)
+				for item in result.find('newest').find('thread'):
 					thread = Bean()
-					flags = pq(item.find('flags'))
+					flags = item.find('flags')
 					thread.flags = Bean()
-					thread.flags.important = True if pq(flags.find('important')).text() == 'true' else False
-					thread.flags.sticky = True if pq(flags.find('fixed')).text() == 'true' else False
-					thread.flags.closed = True if pq(flags.find('closed')).text() == 'true' else False
-					thread.name = pq(item.find('name')).text()
-					thread.url = pq(item.find('url')).text()
-					thread.postid = pq(item.find('postid')).text()
-					thread.date = pq(item.find('date')).text()
-					thread.forum = pq(item.find('forum')).text()
-					thread.forumurl = pq(item.find('forum')).attr('url')
-					thread.user = pq(item.find('user')).text()
+					thread.flags.important = True if flags.find('important').text == 'true' else False
+					thread.flags.sticky = True if flags.find('fixed').text == 'true' else False
+					thread.flags.closed = True if flags.find('closed').text == 'true' else False
+					thread.name = item.find('name').text
+					thread.url = item.find('url').text
+					thread.postid = item.find('postid').text
+					thread.date = item.find('date').text
+					thread.forum = item.find('forum').text
+					thread.forumurl = item.find('forum').get('url')
+					thread.user = item.find('user').text
 					threads.append(thread)
 				m.threads = threads
 			elif module == 'famous':
-				famous = pq(result.find('famous'))
-				user = pq(famous.find('user'))
-				group = pq(famous.find('group'))
-				domain = pq(famous.find('domain'))
+				famous = result.find('famous')
+				user = famous.find('user')
+				group = famous.find('group')
+				domain = famous.find('domain')
 				m.domain = Bean(
-						name=pq(domain.find('name')).text(),
-						owner=pq(domain.find('owner')).text()
+						name=domain.find('name').text(),
+						owner=domain.find('owner').text()
 				)
 				m.group = Bean(
-						name=pq(group.find('name')).text(),
-						url=pq(group.find('url')).text(),
-						members=pq(group.find('members')).text()
+						name=group.find('name').text(),
+						url=group.find('url').text(),
+						members=group.find('members').text()
 				)
 				m.user = Bean(
-						name=pq(user.find('name')).text(),
-						role=pq(user.find('role')).text(),
-						gulden=pq(user.find('gulden')).text(),
+						name=user.find('name').text(),
+						role=user.find('role').text(),
+						gulden=user.find('gulden').text(),
 						stars=Bean(
-							count=pq(user.find('stars count')).text(),
-							color=pq(user.find('stars color')).text()
+							count=user.find('stars count').text(),
+							color=user.find('stars color').text()
 						)
 				)
 			setattr(modules, module, m);
@@ -143,12 +139,11 @@ class LimaApi:
 		if self.session is None:
 			raise NotLoggedIn()
 		result = self.call('getPostThread', id=postid)
-		print result
 		return Bean(
-				location=pq(result.find('location')).text(),
-				name=pq(result.find('name')).text(),
-				page=pq(result.find('page')).text(),
-				perpage=pq(result.find('perpage')).text()
+				location=result.find('location').text(),
+				name=result.find('name').text(),
+				page=result.find('page').text(),
+				perpage=result.find('perpage').text()
 		)
 
 	def getThread(self, url, page=None, perpage=None):
@@ -163,12 +158,14 @@ class LimaApi:
 
 		posts = []
 		for post in result.find('post'):
-			user = pq(post.find('user'))
-			userdeleted = True if user.attr('deleted') == 'true' else False
+			user = post.find('user')
+			userdeleted = True if user.get('deleted') == 'true' else False
 
 			def parseXML(node):
 				bean = Bean(tag=node.tag)
 				if node.tag == 'text':
+					if node.text is None:
+						return None
 					bean.text = node.text
 				elif node.tag == 'goto':
 					bean.type = node.get('type')
@@ -186,40 +183,47 @@ class LimaApi:
 				elif node.tag == 'math':
 					bean.url = node.find('url').text
 					bean.raw = node.find('raw').text
+				elif node.tag == 'code':
+					bean.display = 'inline' if node.get('display') == 'inline' else 'block'
+					bean.language = node.get('language', None)
 
 				if not node.tag in ['br', 'img', 'text', 'math']:
 					bean.children = []
 					for n in node.getchildren():
-						bean.children.append(parseXML(n))
+						x = parseXML(n)
+						if not x is None:
+							bean.children.append(x)
 				return bean
 
 			content = []
 			for node in post.find('content'):
-				content.append(parseXML(node))
+				x = parseXML(node)
+				if not x is None:
+					content.append(x)
 
 			posts.append(Bean(
 				user=Bean(
-					name=user.text(),
-					author=True if user.attr('author') == 'true' else False,
+					name=user.text,
+					author=True if user.get('author') == 'true' else False,
 					deleted=userdeleted,
-					online=True if user.attr('online') == 'true' else False,
-					avatar=user.attr('avatar') if not userdeleted else None,
-					rank=user.attr('rank') if not userdeleted else None,
-					gulden=user.attr('gulden') if not userdeleted else None,
-					role=user.attr('role') if not userdeleted else None,
-					starcount=user.attr('starcount') if not userdeleted else None
+					online=True if user.get('online') == 'true' else False,
+					avatar=user.get('avatar') if not userdeleted else None,
+					rank=user.get('rank') if not userdeleted else None,
+					gulden=user.get('gulden') if not userdeleted else None,
+					role=user.get('role') if not userdeleted else None,
+					starcount=user.get('starcount') if not userdeleted else None
 				),
-				type=pq(post.find('type')).text(),
-				date=pq(post.find('date')).text(),
-				id=pq(post.find('id')).text(),
+				type=post.find('type').text,
+				date=post.find('date').text,
+				id=post.find('id').text,
 				content=content
 			))
 
 		return Bean(
-				name=pq(result.find('name')).text(),
+				name=result.find('name').text(),
 				url=url,
-				pages=pq(result.find('pages')).text(),
-				writable=True if pq(result.find('writable')).text() == 'true' else False,
+				pages=result.find('pages').text(),
+				writable=True if result.find('writable').text() == 'true' else False,
 				posts=posts
 		)
 
