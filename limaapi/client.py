@@ -64,9 +64,18 @@ class LimaApi:
 		else:
 			raise InvalidCredentials()
 
+	def isLoggedIn(self):
+		return not self.session is None
+
+	def checkLogin(self, result):
+		if len(result.find('notloggedin')) != 0:
+			#raise NotLoggedIn()
+			self.login(self.username, self.password)
+
 	def logout(self):
 		if self.session is None:
 			self.call('logout', sid=self.session)
+			self.session = None
 		else:
 			raise NotLoggedIn()
 
@@ -74,8 +83,7 @@ class LimaApi:
 		if self.session is None:
 			raise NotLoggedIn()
 		result = self.call('getBoards', sid=self.session)
-		if len(result.find('notloggedin')) != 0:
-			raise NotLoggedIn()
+		self.checkLogin(result)
 		boards = []
 		for board in result.find('board'):
 			name = board.find('name').text
@@ -87,6 +95,7 @@ class LimaApi:
 		if self.session is None:
 			raise NotLoggedIn()
 		result = self.call('getHomepage', sid=self.session)
+		self.checkLogin(result)
 		modules = Bean()
 		for module in result.find('modules').find('module'):
 			module = module.text
@@ -136,8 +145,6 @@ class LimaApi:
 		return modules
 
 	def getPostThread(self, postid):
-		if self.session is None:
-			raise NotLoggedIn()
 		result = self.call('getPostThread', id=postid)
 		return Bean(
 				location=result.find('location').text(),
@@ -147,6 +154,9 @@ class LimaApi:
 		)
 
 	def getThread(self, url, page=None, perpage=None):
+		if self.session is None:
+			raise NotLoggedIn()
+
 		data = {};
 		data['sid'] = self.session
 		data['url'] = url
@@ -154,7 +164,9 @@ class LimaApi:
 			data['page'] = page
 		if not perpage is None:
 			data['perpage'] = perpage
+
 		result = self.rpc_call('getThread', data)
+		self.checkLogin(result)
 
 		posts = []
 		for post in result.find('post'):
