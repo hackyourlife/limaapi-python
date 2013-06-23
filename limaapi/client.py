@@ -14,7 +14,10 @@ class LimaApi:
 		'visits': 'Letzte Besucher meines Profils',
 		'famous': 'Berühmt für 15 Minuten',
 		'statistics': 'Meine Statistik',
-		'notices': 'Notizen'
+		'notices': 'Notizen',
+		'birthdays': 'Geburtstage',
+		'friendhistory': 'Aktionen meiner Freunde',
+		'registrations': 'Neueste Anmeldungen'
 	}
 
 	def make_base64(s):
@@ -233,7 +236,7 @@ class LimaApi:
 			))
 
 		return Bean(
-				name=result.find('name').text(),
+				name=result.find('name').eq(0).text(),
 				url=url,
 				pages=result.find('pages').text(),
 				writable=True if result.find('writable').text() == 'true' else False,
