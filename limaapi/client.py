@@ -10,6 +10,7 @@ from errors import InvalidCredentials, NotLoggedIn
 class LimaApi:
 	modulenames = {
 		'newest': 'Neueste Beiträge',
+		'noreply': 'Neueste unbeantwortete Themen',
 		'visits': 'Letzte Besucher meines Profils',
 		'famous': 'Berühmt für 15 Minuten',
 		'statistics': 'Meine Statistik',
@@ -67,9 +68,9 @@ class LimaApi:
 	def isLoggedIn(self):
 		return not self.session is None
 
-	def checkLogin(self, result):
+	def checkLogin(self, result, fatal=True):
 		if len(result.find('notloggedin')) != 0:
-			#raise NotLoggedIn()
+			if fatal: raise NotLoggedIn()
 			self.login(self.username, self.password)
 
 	def logout(self):
@@ -238,6 +239,12 @@ class LimaApi:
 				writable=True if result.find('writable').text() == 'true' else False,
 				posts=posts
 		)
+
+	def postInThread(self, thread, content):
+		if self.session is None:
+			raise NotLoggedIn()
+		result = self.call('postInThread', sid=self.session, thread=thread, content=content)
+		self.checkLogin(result)
 
 class Bean:
 	def __init__(self, *args, **keywords):
