@@ -237,6 +237,10 @@ class LimaApi:
 				url=url,
 				pages=result.find('pages').text(),
 				writable=True if result.find('writable').text() == 'true' else False,
+				forum=Bean(
+					name=result.find('forum name').text(),
+					url=result.find('forum url').text()
+				),
 				posts=posts
 		)
 
